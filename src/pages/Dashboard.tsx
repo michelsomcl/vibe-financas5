@@ -7,6 +7,8 @@ import { BillsCards } from '@/components/dashboard/BillsCards';
 import { ExpensesChart } from '@/components/dashboard/ExpensesChart';
 import { MonthlyChart } from '@/components/dashboard/MonthlyChart';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
+import { useEffect } from 'react';
+import { enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
 
 const Dashboard = () => {
   const {
@@ -21,8 +23,20 @@ const Dashboard = () => {
     localTransactions,
     categories,
     loading,
-    billsLoading
+    billsLoading,
+    refreshData
   } = useDashboard();
+
+  // Enable realtime for all tables when dashboard loads
+  useEffect(() => {
+    const initializeRealtime = async () => {
+      await enableRealtimeForAllTables();
+      // Initial refresh of data
+      refreshData();
+    };
+    
+    initializeRealtime();
+  }, [refreshData]);
 
   if (loading || billsLoading) {
     return (

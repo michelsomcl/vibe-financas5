@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useFinance } from '@/contexts/FinanceContext';
 import { supabase } from '@/integrations/supabase/client';
 import { enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
@@ -31,15 +31,48 @@ export const useDashboard = () => {
     setLocalBills(bills);
   }, [bills]);
 
+  // Function to refresh all data
+  const refreshData = useCallback(async () => {
+    console.log("Refreshing dashboard data...");
+    
+    // Fetch latest accounts data
+    const { data: accountsData } = await supabase.from('accounts').select('*');
+    if (accountsData) {
+      const formattedAccounts = accountsData.map(acc => ({
+        id: acc.id,
+        name: acc.name,
+        balance: Number(acc.balance),
+        type: acc.type,
+      }));
+      setLocalAccounts(formattedAccounts);
+    }
+    
+    // Fetch latest transactions data
+    const { data: transactionsData } = await supabase.from('transactions').select('*');
+    if (transactionsData) {
+      const formattedTransactions = transactionsData.map((trans) => ({
+        id: trans.id,
+        type: trans.type,
+        amount: Number(trans.amount),
+        date: new Date(trans.date),
+        categoryId: trans.category_id,
+        accountId: trans.account_id,
+        description: trans.description,
+      }));
+      setLocalTransactions(formattedTransactions);
+    }
+    
+    // Fetch latest bills data
+    const { data: billsData } = await supabase.from('bills').select('*, categories(name, icon)');
+    if (billsData) {
+      setLocalBills(billsData);
+    }
+    
+    console.log("Dashboard data refreshed successfully");
+  }, []);
+
   // Enable real-time updates for all tables
   useEffect(() => {
-    // Enable realtime for all tables
-    const initializeRealtime = async () => {
-      await enableRealtimeForAllTables();
-    };
-    
-    initializeRealtime();
-    
     // Set up listeners for all relevant tables
     const accountsChannel = supabase
       .channel('dashboard-accounts-changes')
@@ -47,17 +80,8 @@ export const useDashboard = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'accounts' },
         async () => {
-          // Refresh accounts data
-          const { data } = await supabase.from('accounts').select('*');
-          if (data) {
-            const formattedAccounts = data.map(acc => ({
-              id: acc.id,
-              name: acc.name,
-              balance: Number(acc.balance),
-              type: acc.type,
-            }));
-            setLocalAccounts(formattedAccounts);
-          }
+          console.log("Accounts table change detected, refreshing data");
+          await refreshData();
         }
       )
       .subscribe();
@@ -68,20 +92,8 @@ export const useDashboard = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transactions' },
         async () => {
-          // Refresh transactions data
-          const { data } = await supabase.from('transactions').select('*');
-          if (data) {
-            const formattedTransactions = data.map((trans) => ({
-              id: trans.id,
-              type: trans.type,
-              amount: Number(trans.amount),
-              date: new Date(trans.date),
-              categoryId: trans.category_id,
-              accountId: trans.account_id,
-              description: trans.description,
-            }));
-            setLocalTransactions(formattedTransactions);
-          }
+          console.log("Transactions table change detected, refreshing data");
+          await refreshData();
         }
       )
       .subscribe();
@@ -92,11 +104,8 @@ export const useDashboard = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bills' },
         async () => {
-          // Refresh bills data
-          const { data } = await supabase.from('bills').select('*, categories(name, icon)');
-          if (data) {
-            setLocalBills(data);
-          }
+          console.log("Bills table change detected, refreshing data");
+          await refreshData();
         }
       )
       .subscribe();
@@ -107,7 +116,7 @@ export const useDashboard = () => {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(billsChannel);
     };
-  }, []);
+  }, [refreshData]);
 
   useEffect(() => {
     // Calculate totals
@@ -226,6 +235,7 @@ export const useDashboard = () => {
     localTransactions,
     categories,
     loading,
-    billsLoading
+    billsLoading,
+    refreshData
   };
 };
