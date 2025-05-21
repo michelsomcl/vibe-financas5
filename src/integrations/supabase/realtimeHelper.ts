@@ -11,7 +11,8 @@ import { supabase } from './client';
 export const enableRealtimeForTable = async (tableName: string): Promise<void> => {
   try {
     // Using the rpc method to call the supabase_realtime function
-    await supabase.rpc('enable_realtime', { table_name: tableName });
+    const { error } = await supabase.rpc('enable_realtime', { table_name: tableName });
+    if (error) throw error;
     console.log(`Real-time enabled for table: ${tableName}`);
   } catch (error) {
     console.error(`Error enabling real-time for table ${tableName}:`, error);
@@ -25,7 +26,8 @@ export const enableRealtimeForTable = async (tableName: string): Promise<void> =
 export const createRealtimeProcedure = async (): Promise<void> => {
   try {
     // Using the rpc method to call the create_realtime_procedure function
-    await supabase.rpc('create_realtime_procedure');
+    const { error } = await supabase.rpc('create_realtime_procedure');
+    if (error) throw error;
     console.log('Real-time procedure created successfully');
   } catch (error) {
     // The procedure might already exist, which is fine

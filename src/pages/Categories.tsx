@@ -1,6 +1,6 @@
-
 import { useState } from 'react';
-import { useFinance, TransactionType } from '@/contexts/FinanceContext';
+import { useFinance } from '@/contexts/FinanceContext';
+import { TransactionType } from '@/types/finance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

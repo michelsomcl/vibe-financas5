@@ -1,7 +1,7 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useFinance, TransactionType } from '@/contexts/FinanceContext';
+import { useFinance } from '@/contexts/FinanceContext';
+import { TransactionType } from '@/types/finance';
 import PageHeader from '@/components/PageHeader';
 import Card from '@/components/Card';
 import { Input } from '@/components/ui/input';
@@ -251,10 +251,7 @@ const NewTransaction = () => {
               disabled={submitting}
             >
               {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>
               ) : (
                 'Salvar Transação'
               )}
