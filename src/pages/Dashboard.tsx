@@ -6,7 +6,7 @@ import Card from '@/components/Card';
 import { ArrowDownCircle, ArrowUpCircle, Wallet, Loader2, Calendar } from 'lucide-react';
 import { format, isSameMonth, isAfter, isBefore, startOfToday } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { enableRealtimeForTable } from '@/integrations/supabase/realtimeHelper';
+import { enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
 
 const Dashboard = () => {
   const { transactions, categories, accounts, bills, loading, billsLoading } = useFinance();
@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [todayBills, setTodayBills] = useState<any[]>([]);
   const [localTransactions, setLocalTransactions] = useState<any[]>([]);
   const [localAccounts, setLocalAccounts] = useState<any[]>([]);
+  const [localBills, setLocalBills] = useState<any[]>([]);
 
   useEffect(() => {
     setLocalTransactions(transactions);
@@ -28,14 +29,21 @@ const Dashboard = () => {
   useEffect(() => {
     setLocalAccounts(accounts);
   }, [accounts]);
-
-  // Enable real-time updates for accounts and transactions
+  
   useEffect(() => {
-    // Enable real-time for both tables
-    enableRealtimeForTable('accounts');
-    enableRealtimeForTable('transactions');
+    setLocalBills(bills);
+  }, [bills]);
 
-    // Set up listeners
+  // Enable real-time updates for all tables
+  useEffect(() => {
+    // Habilitar realtime para todas as tabelas
+    const initializeRealtime = async () => {
+      await enableRealtimeForAllTables();
+    };
+    
+    initializeRealtime();
+    
+    // Set up listeners for all relevant tables
     const accountsChannel = supabase
       .channel('dashboard-accounts-changes')
       .on(
@@ -80,11 +88,27 @@ const Dashboard = () => {
         }
       )
       .subscribe();
+      
+    const billsChannel = supabase
+      .channel('dashboard-bills-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bills' },
+        async () => {
+          // Refresh bills data
+          const { data } = await supabase.from('bills').select('*, categories(name, icon)');
+          if (data) {
+            setLocalBills(data);
+          }
+        }
+      )
+      .subscribe();
 
     // Clean up subscriptions
     return () => {
       supabase.removeChannel(accountsChannel);
       supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(billsChannel);
     };
   }, []);
 
@@ -161,28 +185,28 @@ const Dashboard = () => {
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
     
-    const upcoming = bills
+    const upcoming = localBills
       .filter(b => 
         b.status === 'pending' &&
-        isAfter(new Date(b.dueDate), today) && 
-        isBefore(new Date(b.dueDate), sevenDaysFromNow)
+        isAfter(new Date(b.due_date), today) && 
+        isBefore(new Date(b.due_date), sevenDaysFromNow)
       )
       .slice(0, 3);
     setUpcomingBills(upcoming);
     
     // Overdue bills
-    const overdue = bills
+    const overdue = localBills
       .filter(b => 
         b.status === 'pending' && 
-        isBefore(new Date(b.dueDate), today)
+        isBefore(new Date(b.due_date), today)
       )
       .slice(0, 3);
     setOverdueBills(overdue);
     
     // Today's bills
-    const due = bills
+    const due = localBills
       .filter(b => {
-        const billDate = new Date(b.dueDate);
+        const billDate = new Date(b.due_date);
         return b.status === 'pending' && 
           billDate.getDate() === today.getDate() &&
           billDate.getMonth() === today.getMonth() &&
@@ -191,7 +215,7 @@ const Dashboard = () => {
       .slice(0, 3);
     setTodayBills(due);
 
-  }, [localTransactions, localAccounts, categories, bills]);
+  }, [localTransactions, localAccounts, categories, localBills]);
 
   const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#a4de6c', '#d0ed57'];
 

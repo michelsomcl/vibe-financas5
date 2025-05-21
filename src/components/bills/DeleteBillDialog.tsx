@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,9 +32,10 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
 }) => {
   // Find the bill to display appropriate message
   const bill = bills.find(b => b.id === billToDelete);
+  const [hasTransaction, setHasTransaction] = useState(false);
 
   // Check if this bill has a corresponding transaction that needs to be deleted
-  React.useEffect(() => {
+  useEffect(() => {
     if (billToDelete) {
       // Look for transactions with the same ID as the bill
       const checkTransaction = async () => {
@@ -45,12 +46,26 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
           
         if (data && data.length > 0) {
           console.log('Found matching transaction for bill:', data[0]);
+          setHasTransaction(true);
+        } else {
+          // Also check for transactions that might mention this bill in their description
+          const billDesc = bill?.description;
+          if (billDesc) {
+            const { data: relatedTransactions } = await supabase
+              .from('transactions')
+              .select('*')
+              .ilike('description', `Pagamento: ${billDesc}%`);
+              
+            setHasTransaction(relatedTransactions && relatedTransactions.length > 0);
+          } else {
+            setHasTransaction(false);
+          }
         }
       };
       
       checkTransaction();
     }
-  }, [billToDelete]);
+  }, [billToDelete, bill]);
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
@@ -65,6 +80,8 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
               ' Como é uma parcela, apenas esta parcela será excluída.'}
             {bill?.is_recurring &&
               ' Se for uma conta recorrente, apenas esta ocorrência será excluída.'}
+            {hasTransaction &&
+              ' Há uma transação relacionada que também será afetada.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

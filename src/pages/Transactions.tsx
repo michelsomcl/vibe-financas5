@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { enableRealtimeForTable } from '@/integrations/supabase/realtimeHelper';
+import { enableRealtimeForTable, enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
 
 const Transactions = () => {
   const { transactions, categories, accounts, loading } = useFinance();
@@ -17,46 +17,83 @@ const Transactions = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [localTransactions, setLocalTransactions] = useState<any[]>([]);
+  const [localAccounts, setLocalAccounts] = useState<any[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setLocalTransactions(transactions);
   }, [transactions]);
-
-  // Enable real-time updates for transactions
+  
   useEffect(() => {
-    // Enable real-time for the transactions table
-    enableRealtimeForTable('transactions');
-    
-    // Set up a realtime listener for transaction changes
-    const channel = supabase
-      .channel('transactions-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions' },
-        async () => {
-          // Refresh transactions data
-          const { data } = await supabase.from('transactions').select('*');
-          if (data) {
-            const formattedTransactions = data.map((trans) => ({
-              id: trans.id,
-              type: trans.type,
-              amount: Number(trans.amount),
-              date: new Date(trans.date),
-              categoryId: trans.category_id,
-              accountId: trans.account_id,
-              description: trans.description,
-            }));
-            setLocalTransactions(formattedTransactions);
-          }
-        }
-      )
-      .subscribe();
+    setLocalAccounts(accounts);
+  }, [accounts]);
 
-    // Clean up the subscription when component unmounts
-    return () => {
-      supabase.removeChannel(channel);
+  // Enable real-time updates for all tables when component mounts
+  useEffect(() => {
+    // Habilitar realtime para todas as tabelas
+    enableRealtimeForAllTables();
+    
+    // Set up individual listeners for all tables
+    const setupRealtimeListeners = async () => {
+      console.log('Setting up realtime listeners for transactions and accounts');
+      
+      // Transaction changes channel
+      const transactionsChannel = supabase
+        .channel('transactions-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'transactions' },
+          async (payload) => {
+            console.log('Transaction change detected:', payload);
+            // Refresh transactions data
+            const { data: transData } = await supabase.from('transactions').select('*');
+            if (transData) {
+              const formattedTransactions = transData.map((trans) => ({
+                id: trans.id,
+                type: trans.type,
+                amount: Number(trans.amount),
+                date: new Date(trans.date),
+                categoryId: trans.category_id,
+                accountId: trans.account_id,
+                description: trans.description,
+              }));
+              setLocalTransactions(formattedTransactions);
+            }
+          }
+        )
+        .subscribe();
+        
+      // Accounts changes channel  
+      const accountsChannel = supabase
+        .channel('accounts-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'accounts' },
+          async (payload) => {
+            console.log('Account change detected:', payload);
+            // Refresh accounts data
+            const { data: accData } = await supabase.from('accounts').select('*');
+            if (accData) {
+              const formattedAccounts = accData.map((acc) => ({
+                id: acc.id,
+                name: acc.name,
+                balance: Number(acc.balance),
+                type: acc.type,
+              }));
+              setLocalAccounts(formattedAccounts);
+            }
+          }
+        )
+        .subscribe();
+
+      // Clean up the subscriptions when component unmounts
+      return () => {
+        supabase.removeChannel(transactionsChannel);
+        supabase.removeChannel(accountsChannel);
+      };
     };
+    
+    setupRealtimeListeners();
   }, []);
 
   // Get all unique months from transactions
@@ -100,7 +137,7 @@ const Transactions = () => {
       setIsDeleting(true);
       try {
         // Find the affected account
-        const account = accounts.find(a => a.id === transaction.accountId);
+        const account = localAccounts.find(a => a.id === transaction.accountId);
         if (!account) {
           throw new Error('Conta não encontrada');
         }
@@ -127,26 +164,54 @@ const Transactions = () => {
 
         if (error) throw error;
         
-        // If the transaction came from a bill, we also need to update the bill status
+        // Check if this transaction is related to a bill payment
+        // If it's a payment from a bill, we need to update the bill status back to pending
         const { data: billData, error: billError } = await supabase
           .from('bills')
           .select('*')
           .eq('id', transaction.id);
-        
-        // If we found a bill with the same ID as the transaction, delete it too
-        if (billData && billData.length > 0) {
-          const { error: deleteBillError } = await supabase
+          
+        if (!billError && billData && billData.length > 0) {
+          // This is a transaction that was created from a bill payment
+          // Update the bill status back to pending
+          const { error: updateBillError } = await supabase
             .from('bills')
-            .delete()
+            .update({ status: 'pending' })
             .eq('id', transaction.id);
             
-          if (deleteBillError) {
-            console.error('Error deleting associated bill:', deleteBillError);
+          if (updateBillError) {
+            console.error('Error updating associated bill:', updateBillError);
+          }
+        }
+        
+        // Also check for any bill with a description matching this transaction
+        // This handles the case where transaction description starts with "Pagamento: "
+        if (transaction.description.startsWith('Pagamento: ')) {
+          const billDescription = transaction.description.replace('Pagamento: ', '');
+          
+          // Find bills with this description that are marked as paid
+          const { data: relatedBills } = await supabase
+            .from('bills')
+            .select('*')
+            .eq('description', billDescription)
+            .eq('status', 'paid');
+            
+          if (relatedBills && relatedBills.length > 0) {
+            // Update the most recently paid bill with this description back to pending
+            const mostRecentBill = relatedBills[0];
+            
+            const { error: updateBillError } = await supabase
+              .from('bills')
+              .update({ status: 'pending' })
+              .eq('id', mostRecentBill.id);
+              
+            if (updateBillError) {
+              console.error('Error updating related bill:', updateBillError);
+            }
           }
         }
 
-        // Update local state
-        setLocalTransactions(localTransactions.filter(t => t.id !== transaction.id));
+        // Update local state is now handled by the realtime subscription
         
         toast({
           title: 'Sucesso',
@@ -254,7 +319,7 @@ const Transactions = () => {
                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                   .map((transaction) => {
                     const category = categories.find(c => c.id === transaction.categoryId);
-                    const account = accounts.find(a => a.id === transaction.accountId);
+                    const account = localAccounts.find(a => a.id === transaction.accountId);
                     return (
                       <tr key={transaction.id} className="border-b last:border-0 hover:bg-gray-50">
                         <td className="py-3">{transaction.description}</td>

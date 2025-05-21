@@ -47,15 +47,16 @@ export const useBills = () => {
     // Enable real-time for the bills table
     enableRealtimeForTable('bills');
 
-    // Set up realtime subscription
+    // Set up realtime subscription with broader event handling
     const channel = supabase
       .channel('bills-changes')
       .on('postgres_changes', {
-        event: '*',
+        event: '*',  // Listen to all events (INSERT, UPDATE, DELETE)
         schema: 'public',
         table: 'bills'
-      }, () => {
-        fetchBills();
+      }, (payload) => {
+        console.log('Bills table change detected:', payload);
+        fetchBills(); // Refresh bills data when any change is detected
       })
       .subscribe();
 

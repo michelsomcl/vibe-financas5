@@ -1,8 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { useFinance } from '@/contexts/FinanceContext';
 import PageHeader from '@/components/PageHeader';
-import Card from '@/components/Card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -12,17 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Calendar, Plus, Check, Trash2, Loader2 } from 'lucide-react';
+import { Calendar, Plus, Loader2 } from 'lucide-react';
 import { format, isBefore, isEqual, isToday } from 'date-fns';
 import BillForm from '@/components/BillForm';
 import BillPaymentForm from '@/components/BillPaymentForm';
@@ -31,6 +19,7 @@ import { toast } from '@/hooks/use-toast';
 import { BillsList } from '@/components/bills/BillsList';
 import { DeleteBillDialog } from '@/components/bills/DeleteBillDialog';
 import { useBills } from '@/hooks/useBills';
+import { enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
 
 const Bills = () => {
   const { categories, billsLoading, deleteBill } = useFinance();
@@ -44,6 +33,15 @@ const Bills = () => {
   
   // Use the custom useBills hook for fetching and managing bills
   const { bills: localBills, refresh: refreshBills, loading: billsDataLoading } = useBills();
+
+  // Enable real-time updates for all tables when the component mounts
+  useEffect(() => {
+    const initializeRealtime = async () => {
+      await enableRealtimeForAllTables();
+    };
+    
+    initializeRealtime();
+  }, []);
 
   // Filter bills based on the active tab
   const displayBills = localBills.filter(bill => {
@@ -110,6 +108,9 @@ const Bills = () => {
     setIsDeleting(true);
     try {
       await deleteBill(billToDelete);
+      
+      // Não precisamos chamar o refresh explicitamente, pois o realtime vai atualizar automaticamente
+      // mas manteremos por segurança
       await refreshBills();
       
       toast({
@@ -132,12 +133,14 @@ const Bills = () => {
 
   const handleAddBillClose = async () => {
     setIsAddingBill(false);
+    // O refresh já será feito pelo realtime, mas mantemos por segurança
     await refreshBills();
   };
 
   const handlePayBillClose = async () => {
     setIsPayingBill(false);
     setSelectedBill(null);
+    // O refresh já será feito pelo realtime, mas mantemos por segurança
     await refreshBills();
   };
 
