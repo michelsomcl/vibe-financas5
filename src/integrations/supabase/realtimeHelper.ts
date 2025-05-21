@@ -10,11 +10,10 @@ import { supabase } from './client';
  */
 export const enableRealtimeForTable = async (tableName: string): Promise<void> => {
   try {
-    // Using the rpc method to call the supabase_realtime function
-    // Fix: Use an explicit type assertion to address the TypeScript error
+    // Using the rpc method with proper typing
     const { error } = await supabase.rpc('enable_realtime', { 
       table_name: tableName 
-    } as any);
+    }) as unknown as { error: any };
     
     if (error) throw error;
     console.log(`Real-time enabled for table: ${tableName}`);
@@ -29,9 +28,8 @@ export const enableRealtimeForTable = async (tableName: string): Promise<void> =
  */
 export const createRealtimeProcedure = async (): Promise<void> => {
   try {
-    // Using the rpc method to call the create_realtime_procedure function
-    // Fix: Use an explicit type assertion to address the TypeScript error
-    const { error } = await supabase.rpc('create_realtime_procedure' as any);
+    // Using the rpc method with proper typing
+    const { error } = await supabase.rpc('create_realtime_procedure') as unknown as { error: any };
     
     if (error) throw error;
     console.log('Real-time procedure created successfully');
