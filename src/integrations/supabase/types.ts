@@ -179,8 +179,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+  enable_realtime: {
+    Args: {
+      table_name: string
     }
+    Returns: unknown
+  }
+  create_realtime_procedure: {
+    Args: Record<string, never>
+    Returns: unknown
+  }
+}
     Enums: {
       [_ in never]: never
     }
