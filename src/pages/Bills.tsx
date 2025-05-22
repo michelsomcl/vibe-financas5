@@ -15,6 +15,7 @@ import BillForm from '@/components/BillForm';
 import BillPaymentForm from '@/components/BillPaymentForm';
 import { BillsList } from '@/components/bills/BillsList';
 import { DeleteBillDialog } from '@/components/bills/DeleteBillDialog';
+import { EditBillConfirmDialog } from '@/components/bills/EditBillConfirmDialog';
 import { useBillsPage } from '@/hooks/useBillsPage';
 
 const Bills = () => {
@@ -38,7 +39,15 @@ const Bills = () => {
     handleDeleteBill,
     confirmDeleteBill,
     handleAddBillClose,
-    handlePayBillClose
+    handlePayBillClose,
+    // New edit functionality
+    isEditingBill,
+    setIsEditingBill,
+    billToEdit,
+    handleEditBill,
+    handleEditSingle,
+    handleEditAll,
+    isEditing
   } = useBillsPage();
 
   if (isLoading && bills.length === 0) {
@@ -75,6 +84,7 @@ const Bills = () => {
           sortedDates={sortedDates} 
           onPayBill={handlePayBill} 
           onDeleteBill={handleDeleteBill}
+          onEditBill={handleEditBill}
           activeTab={activeTab}
         />
       </Tabs>
@@ -112,6 +122,26 @@ const Bills = () => {
         </SheetContent>
       </Sheet>
 
+      {/* Edit Bill Sheet */}
+      <Sheet open={isEditingBill && !billToEdit?.is_installment && !billToEdit?.is_recurring} onOpenChange={setIsEditingBill}>
+        <SheetContent className="sm:max-w-md overflow-y-auto max-h-screen">
+          <SheetHeader>
+            <SheetTitle>Editar Conta</SheetTitle>
+            <SheetDescription>
+              Atualize os dados da conta a pagar
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6">
+            {billToEdit && (
+              <BillForm 
+                onClose={() => setIsEditingBill(false)} 
+                billToEdit={billToEdit} 
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Delete Confirmation Dialog */}
       <DeleteBillDialog
         isOpen={isDeleteDialogOpen}
@@ -120,6 +150,16 @@ const Bills = () => {
         bills={bills}
         isDeleting={isDeleting}
         onConfirmDelete={confirmDeleteBill}
+      />
+
+      {/* Edit Confirmation Dialog for Installment/Recurring */}
+      <EditBillConfirmDialog
+        isOpen={isEditingBill && (billToEdit?.is_installment || billToEdit?.is_recurring)}
+        onOpenChange={setIsEditingBill}
+        bill={billToEdit}
+        onEditSingle={handleEditSingle}
+        onEditAll={handleEditAll}
+        isLoading={isEditing}
       />
     </div>
   );

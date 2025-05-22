@@ -1,7 +1,7 @@
 
 import React from 'react';
 import Card from '@/components/Card';
-import { Calendar, Check, Trash2 } from 'lucide-react';
+import { Calendar, Check, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, isBefore, isToday, isEqual } from 'date-fns';
 
@@ -10,6 +10,7 @@ interface BillsListProps {
   sortedDates: string[];
   onPayBill: (billId: string) => void;
   onDeleteBill: (billId: string) => void;
+  onEditBill: (billId: string) => void;
   activeTab: string;
 }
 
@@ -18,6 +19,7 @@ export const BillsList: React.FC<BillsListProps> = ({
   sortedDates,
   onPayBill,
   onDeleteBill,
+  onEditBill,
   activeTab
 }) => {
   if (sortedDates.length === 0) {
@@ -54,7 +56,8 @@ export const BillsList: React.FC<BillsListProps> = ({
               key={bill.id} 
               bill={bill} 
               onPayBill={onPayBill} 
-              onDeleteBill={onDeleteBill} 
+              onDeleteBill={onDeleteBill}
+              onEditBill={onEditBill}
             />
           ))}
         </div>
@@ -67,9 +70,10 @@ interface BillItemProps {
   bill: any;
   onPayBill: (billId: string) => void;
   onDeleteBill: (billId: string) => void;
+  onEditBill: (billId: string) => void;
 }
 
-const BillItem: React.FC<BillItemProps> = ({ bill, onPayBill, onDeleteBill }) => {
+const BillItem: React.FC<BillItemProps> = ({ bill, onPayBill, onDeleteBill, onEditBill }) => {
   // Parse the date string correctly to avoid timezone issues
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -116,6 +120,13 @@ const BillItem: React.FC<BillItemProps> = ({ bill, onPayBill, onDeleteBill }) =>
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(bill.amount)}
           </span>
           <div className="flex gap-2 mt-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => onEditBill(bill.id)}
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
             <Button 
               size="sm" 
               onClick={() => onPayBill(bill.id)}

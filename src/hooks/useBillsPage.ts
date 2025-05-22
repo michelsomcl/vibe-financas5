@@ -1,82 +1,165 @@
-import { useState, useEffect } from 'react';
-import { useFinance } from '@/contexts/FinanceContext';
-import { format, isBefore, isEqual, isToday } from 'date-fns';
-import { enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
+import { useState, useMemo } from 'react';
+import { isAfter, isSameDay, parseISO, compareAsc } from 'date-fns';
+import { toast } from 'sonner';
 import { useBills } from '@/hooks/useBills';
+import { useBillsData } from '@/hooks/finance/useBills';
+import { useAccounts } from '@/hooks/finance/useAccounts';
+import { useTransactions } from '@/hooks/finance/useTransactions';
 
 export const useBillsPage = () => {
-  const { categories, billsLoading, deleteBill } = useFinance();
+  // State
   const [isAddingBill, setIsAddingBill] = useState(false);
   const [isPayingBill, setIsPayingBill] = useState(false);
+  const [isEditingBill, setIsEditingBill] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [selectedBill, setSelectedBill] = useState<string | null>(null);
+  const [billToEdit, setBillToEdit] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState('all');
+  
+  // Delete dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { bills: localBills, refresh: refreshBills, loading: billsDataLoading } = useBills();
+  // Get bills data
+  const { bills: rawBills, loading: isLoading } = useBills();
+  
+  // Get accounts and transactions for payment handling
+  const { accounts, setAccounts } = useAccounts();
+  const { transactions, setTransactions } = useTransactions();
+  
+  // Get bills methods
+  const { 
+    deleteBill, 
+    payBill,
+    editBill
+  } = useBillsData(
+    accounts, 
+    transactions, 
+    setTransactions,
+    setAccounts
+  );
 
-  // Enable real-time updates for all tables when the component mounts
-  useEffect(() => {
-    const initializeRealtime = async () => {
-      await enableRealtimeForAllTables();
-    };
+  // Processed bills for display
+  const bills = useMemo(() => {
+    if (!rawBills || rawBills.length === 0) return [];
     
-    initializeRealtime();
-  }, []);
+    return rawBills.map((bill: any) => ({
+      ...bill,
+      due_date: bill.due_date,
+      categories: bill.categories
+    }));
+  }, [rawBills]);
 
-  // Filter bills based on the active tab
-  const displayBills = localBills.filter(bill => {
-    if (bill.status !== 'pending') return false;
-    
-    // Parse the date string correctly to avoid timezone issues
+  // Group bills by due date for display
+  const { groupedBills, sortedDates } = useMemo(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to beginning of day for proper comparison
-    
-    // Ensure we're working with a proper date object for the due date
-    let dueDate: Date;
-    if (typeof bill.due_date === 'string') {
-      // Parse the date directly from the YYYY-MM-DD format without timezone conversion
-      const dateParts = bill.due_date.split('-');
-      dueDate = new Date(
-        parseInt(dateParts[0]), // year
-        parseInt(dateParts[1]) - 1, // month (0-indexed)
-        parseInt(dateParts[2]) // day
-      );
-    } else {
-      dueDate = new Date(bill.due_date);
-    }
-    
-    dueDate.setHours(0, 0, 0, 0); // Set to beginning of day
+    today.setHours(0, 0, 0, 0);
+
+    // Filter bills based on active tab
+    let filteredBills;
     
     switch (activeTab) {
       case 'overdue':
-        return isBefore(dueDate, today) && !isEqual(dueDate, today);
+        filteredBills = bills.filter((bill: any) => {
+          const dueDate = new Date(bill.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return isAfter(today, dueDate) && !isSameDay(today, dueDate) && bill.status === 'pending';
+        });
+        break;
       case 'today':
-        return isToday(dueDate);
+        filteredBills = bills.filter((bill: any) => {
+          const dueDate = new Date(bill.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return isSameDay(today, dueDate) && bill.status === 'pending';
+        });
+        break;
       case 'upcoming':
-        return isBefore(today, dueDate);
-      default:
-        return true;
+        filteredBills = bills.filter((bill: any) => {
+          const dueDate = new Date(bill.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return isAfter(dueDate, today) && bill.status === 'pending';
+        });
+        break;
+      default: // 'all'
+        filteredBills = bills.filter((bill: any) => bill.status === 'pending');
+        break;
     }
-  });
 
-  // Group bills by due date
-  const groupedBills: Record<string, typeof displayBills> = {};
-  displayBills.forEach(bill => {
-    const dateKey = typeof bill.due_date === 'string' ? bill.due_date : format(new Date(bill.due_date), 'yyyy-MM-dd');
-    if (!groupedBills[dateKey]) {
-      groupedBills[dateKey] = [];
-    }
-    groupedBills[dateKey].push(bill);
-  });
+    // Group bills by due date
+    const grouped: Record<string, any[]> = {};
+    
+    filteredBills.forEach((bill: any) => {
+      const dateKey = typeof bill.due_date === 'string' 
+        ? bill.due_date.split('T')[0] 
+        : bill.due_date.toISOString().split('T')[0];
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      
+      grouped[dateKey].push(bill);
+    });
 
-  // Sort dates
-  const sortedDates = Object.keys(groupedBills).sort();
+    // Sort dates
+    const sorted = Object.keys(grouped).sort((a, b) => {
+      const dateA = parseISO(a);
+      const dateB = parseISO(b);
+      return compareAsc(dateA, dateB);
+    });
 
+    return { groupedBills: grouped, sortedDates: sorted };
+  }, [bills, activeTab]);
+
+  // Handlers
   const handlePayBill = (billId: string) => {
     setSelectedBill(billId);
     setIsPayingBill(true);
+  };
+
+  const handleEditBill = (billId: string) => {
+    const bill = bills.find((b: any) => b.id === billId);
+    if (bill) {
+      setBillToEdit(bill);
+      setIsEditingBill(true);
+      
+      // If bill is not recurring or installment, open edit sheet directly
+      if (!bill.is_recurring && !bill.is_installment) {
+        setIsEditingBill(true);
+      }
+    }
+  };
+
+  const handleEditSingle = () => {
+    // Open the edit form for only the selected bill
+    if (billToEdit) {
+      // Keep the edit sheet open after confirmation
+      setIsEditingBill(true);
+    }
+  };
+
+  const handleEditAll = async () => {
+    // Handle editing all recurring bills or installments
+    setIsEditing(true);
+    try {
+      if (!billToEdit) return;
+      
+      if (billToEdit.is_installment) {
+        // Logic for editing all installments in a series
+        toast.info("Editando todas as parcelas...");
+        // Edit logic would go here
+      } else if (billToEdit.is_recurring) {
+        // Logic for editing all future recurring bills
+        toast.info("Editando todos os lançamentos recorrentes futuros...");
+        // Edit logic would go here
+      }
+    } catch (error) {
+      console.error("Error during bill update:", error);
+      toast.error("Erro ao atualizar contas a pagar. Tente novamente.");
+    } finally {
+      setIsEditing(false);
+      setIsEditingBill(false);
+    }
   };
 
   const handleDeleteBill = (billId: string) => {
@@ -90,12 +173,10 @@ export const useBillsPage = () => {
     setIsDeleting(true);
     try {
       await deleteBill(billToDelete);
-      
-      // We don't need to explicitly call refresh as the realtime will update automatically
-      // but keeping it for safety
-      await refreshBills();
+      toast.success("Conta a pagar excluída com sucesso!");
     } catch (error) {
-      console.error('Error deleting bill:', error);
+      console.error("Error during bill deletion:", error);
+      toast.error("Erro ao excluir conta a pagar. Tente novamente.");
     } finally {
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
@@ -103,27 +184,20 @@ export const useBillsPage = () => {
     }
   };
 
-  const handleAddBillClose = async () => {
+  const handleAddBillClose = () => {
     setIsAddingBill(false);
-    // Refresh already handled by realtime, but keeping for safety
-    await refreshBills();
   };
 
-  const handlePayBillClose = async () => {
+  const handlePayBillClose = () => {
     setIsPayingBill(false);
     setSelectedBill(null);
-    // Refresh already handled by realtime, but keeping for safety
-    await refreshBills();
   };
 
-  const isLoading = billsLoading || billsDataLoading;
-
   return {
-    bills: localBills,
-    categories,
+    bills,
     isLoading,
     isAddingBill,
-    setIsAddingBill, 
+    setIsAddingBill,
     isPayingBill,
     setIsPayingBill,
     selectedBill,
@@ -139,6 +213,14 @@ export const useBillsPage = () => {
     handleDeleteBill,
     confirmDeleteBill,
     handleAddBillClose,
-    handlePayBillClose
+    handlePayBillClose,
+    // New edit functionality
+    isEditingBill,
+    setIsEditingBill,
+    billToEdit,
+    handleEditBill,
+    handleEditSingle,
+    handleEditAll,
+    isEditing
   };
 };

@@ -35,12 +35,26 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
   const bill = bills.find(b => b.id === billToDelete);
   const [hasTransaction, setHasTransaction] = useState(false);
   const [hasChildInstallments, setHasChildInstallments] = useState(false);
+  const [hasFollowingRecurrences, setHasFollowingRecurrences] = useState(false);
 
   useEffect(() => {
     if (billToDelete) {
       // Check if this is a parent installment with children
       const childInstallments = bills.filter(b => b.parent_bill_id === billToDelete);
       setHasChildInstallments(childInstallments.length > 0);
+      
+      // Check if this is a recurring bill with future occurrences
+      if (bill?.is_recurring) {
+        // Find occurrences with same description and due date after this one
+        const currentDueDate = new Date(bill.due_date);
+        const followingRecurrences = bills.filter(b => 
+          b.id !== bill.id && 
+          b.description === bill.description &&
+          b.is_recurring === true &&
+          new Date(b.due_date) > currentDueDate
+        );
+        setHasFollowingRecurrences(followingRecurrences.length > 0);
+      }
       
       // Check for transactions with the same ID as the bill
       const checkTransaction = async () => {
@@ -93,8 +107,8 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
               ' Esta é uma parcela principal. Todas as parcelas relacionadas serão excluídas primeiro.'}
             {bill?.is_installment && bill?.parent_bill_id && 
               ' Como é uma parcela, apenas esta parcela será excluída.'}
-            {bill?.is_recurring &&
-              ' Se for uma conta recorrente, apenas esta ocorrência será excluída.'}
+            {bill?.is_recurring && hasFollowingRecurrences &&
+              ' Os lançamentos seguintes do tipo Recorrente também serão excluídos.'}
             {hasTransaction &&
               ' Há uma transação relacionada que também será afetada.'}
           </AlertDialogDescription>
