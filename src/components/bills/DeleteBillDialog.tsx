@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface DeleteBillDialogProps {
   isOpen: boolean;
@@ -33,11 +34,15 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
   // Find the bill to display appropriate message
   const bill = bills.find(b => b.id === billToDelete);
   const [hasTransaction, setHasTransaction] = useState(false);
+  const [hasChildInstallments, setHasChildInstallments] = useState(false);
 
-  // Check if this bill has a corresponding transaction that needs to be deleted
   useEffect(() => {
     if (billToDelete) {
-      // Look for transactions with the same ID as the bill
+      // Check if this is a parent installment with children
+      const childInstallments = bills.filter(b => b.parent_bill_id === billToDelete);
+      setHasChildInstallments(childInstallments.length > 0);
+      
+      // Check for transactions with the same ID as the bill
       const checkTransaction = async () => {
         const { data } = await supabase
           .from('transactions')
@@ -65,7 +70,17 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
       
       checkTransaction();
     }
-  }, [billToDelete, bill]);
+  }, [billToDelete, bill, bills]);
+
+  const handleConfirmDelete = async () => {
+    try {
+      onConfirmDelete();
+    } catch (error) {
+      console.error("Error during bill deletion:", error);
+      toast.error("Erro ao excluir conta a pagar. Tente novamente.");
+      onOpenChange(false);
+    }
+  };
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
@@ -74,8 +89,8 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
           <AlertDialogTitle>Excluir conta?</AlertDialogTitle>
           <AlertDialogDescription>
             Essa ação não pode ser desfeita. Isso excluirá permanentemente esta conta.
-            {bill?.is_installment && !bill?.parent_bill_id && 
-              ' Se for a parcela principal, todas as parcelas serão excluídas.'}
+            {bill?.is_installment && !bill?.parent_bill_id && hasChildInstallments && 
+              ' Esta é uma parcela principal. Todas as parcelas relacionadas serão excluídas primeiro.'}
             {bill?.is_installment && bill?.parent_bill_id && 
               ' Como é uma parcela, apenas esta parcela será excluída.'}
             {bill?.is_recurring &&
@@ -87,7 +102,7 @@ export const DeleteBillDialog: React.FC<DeleteBillDialogProps> = ({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
           <AlertDialogAction 
-            onClick={onConfirmDelete} 
+            onClick={handleConfirmDelete} 
             disabled={isDeleting} 
             className="bg-red-500 hover:bg-red-600"
           >

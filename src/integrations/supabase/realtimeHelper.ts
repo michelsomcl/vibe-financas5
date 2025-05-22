@@ -6,8 +6,9 @@ import { supabase } from './client';
  */
 export const enableRealtimeForTable = async (tableName: string): Promise<void> => {
   try {
+    // Using type assertion to handle the RPC call
     const { error } = await supabase.rpc(
-      'enable_realtime' as string,
+      'enable_realtime',
       { table_name: tableName }
     ) as any;
     
@@ -23,8 +24,9 @@ export const enableRealtimeForTable = async (tableName: string): Promise<void> =
  */
 export const createRealtimeProcedure = async (): Promise<void> => {
   try {
+    // Using type assertion to handle the RPC call
     const { error } = await supabase.rpc(
-      'create_realtime_procedure' as string
+      'create_realtime_procedure'
     ) as any;
     
     if (error) throw error;

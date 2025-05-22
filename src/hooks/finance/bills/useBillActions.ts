@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Bill } from '@/types/finance';
@@ -166,15 +165,21 @@ export const useBillActions = (bills: Bill[], setBills: (bills: Bill[]) => void)
 
         if (error) throw error;
       } else if (billToDelete?.isInstallment && !billToDelete.parentBillId) {
-        // It's a parent installment, delete all children too
-        const { error: childError } = await supabase
-          .from('bills')
-          .delete()
-          .eq('parent_bill_id', id);
-
-        if (childError) throw childError;
+        // It's a parent installment, we need to delete all children first
+        // Get all child installments
+        const childBills = bills.filter(b => b.parentBillId === id);
         
-        // Then delete the parent
+        // Delete children one by one to avoid foreign key constraint errors
+        for (const child of childBills) {
+          const { error: childError } = await supabase
+            .from('bills')
+            .delete()
+            .eq('id', child.id);
+            
+          if (childError) throw childError;
+        }
+        
+        // Then delete the parent after all children are deleted
         const { error } = await supabase
           .from('bills')
           .delete()
@@ -191,7 +196,15 @@ export const useBillActions = (bills: Bill[], setBills: (bills: Bill[]) => void)
         if (error) throw error;
       }
 
-      setBills(bills.filter((b) => b.id !== id && b.parentBillId !== id));
+      // Update the local state to remove the deleted bills
+      if (billToDelete?.isInstallment && !billToDelete.parentBillId) {
+        // If it was a parent bill, remove it and all children
+        setBills(bills.filter(b => b.id !== id && b.parentBillId !== id));
+      } else {
+        // Otherwise just remove the individual bill
+        setBills(bills.filter(b => b.id !== id));
+      }
+      
       toast.success('Conta a pagar excluída com sucesso!');
     } catch (error) {
       console.error('Error deleting bill:', error);
