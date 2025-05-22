@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useFinance } from '@/contexts/FinanceContext';
 import { useForm } from 'react-hook-form';
@@ -10,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { Account } from '@/types/finance';
 
 interface BillPaymentFormProps {
   billId: string;
@@ -23,10 +23,41 @@ const formSchema = z.object({
 });
 
 const BillPaymentForm = ({ billId, onClose }: BillPaymentFormProps) => {
-  const { accounts } = useFinance();
+  const { accounts: contextAccounts } = useFinance();
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Fetch the latest account data directly from Supabase
+  useEffect(() => {
+    const fetchLatestAccounts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*');
+        
+        if (error) {
+          throw error;
+        }
+        
+        const formattedAccounts = data.map((acc) => ({
+          id: acc.id,
+          name: acc.name,
+          balance: Number(acc.balance),
+          type: acc.type as 'bank' | 'cash' | 'credit' | 'investment',
+        }));
+        
+        setAccounts(formattedAccounts);
+      } catch (error) {
+        console.error('Error fetching latest accounts:', error);
+        // Fallback to context accounts if direct fetch fails
+        setAccounts(contextAccounts);
+      }
+    };
+    
+    fetchLatestAccounts();
+  }, [contextAccounts]);
   
   // Fetch the bill directly from Supabase
   useEffect(() => {
