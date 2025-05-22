@@ -6,11 +6,10 @@ import Card from '@/components/Card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useTransactions } from '@/hooks/useTransactions';
 import { TransactionFilters } from '@/components/transactions/TransactionFilters';
 import { TransactionList } from '@/components/transactions/TransactionList';
+import { formatMonthName } from '@/utils/formatters';
 
 const Transactions = () => {
   const { categories } = useFinance();
@@ -19,21 +18,15 @@ const Transactions = () => {
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [localTransactions, setLocalTransactions] = useState<any[]>([]);
-
-  // Update local transactions whenever the transactions prop changes
-  useEffect(() => {
-    setLocalTransactions(transactions);
-  }, [transactions]);
 
   // Get all unique months from transactions
-  const uniqueMonths = [...new Set(localTransactions.map(t => {
+  const uniqueMonths = [...new Set(transactions.map(t => {
     const date = new Date(t.date);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }))].sort((a, b) => b.localeCompare(a));
 
   // Filter transactions
-  const filteredTransactions = localTransactions.filter(transaction => {
+  const filteredTransactions = transactions.filter(transaction => {
     // Filter by type
     if (selectedType !== 'all' && transaction.type !== selectedType) {
       return false;
@@ -55,21 +48,6 @@ const Transactions = () => {
 
     return true;
   });
-
-  const formatMonthName = (monthStr: string) => {
-    const [year, month] = monthStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-    return format(date, 'MMMM yyyy', { locale: ptBR });
-  };
-
-  // Handle immediate UI update when deleting a transaction
-  const handleDeleteTransaction = async (transaction: any) => {
-    // Immediately remove transaction from UI
-    setLocalTransactions(prev => prev.filter(t => t.id !== transaction.id));
-    
-    // Then perform the actual deletion in the background
-    await deleteTransaction(transaction);
-  };
 
   if (loading) {
     return (
@@ -112,7 +90,7 @@ const Transactions = () => {
           categories={categories}
           accounts={accounts}
           isDeleting={isDeleting}
-          onDeleteTransaction={handleDeleteTransaction}
+          onDeleteTransaction={deleteTransaction}
         />
       </Card>
     </div>

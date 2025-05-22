@@ -1,241 +1,57 @@
 
-import { useState, useEffect, useCallback } from 'react';
 import { useFinance } from '@/contexts/FinanceContext';
-import { supabase } from '@/integrations/supabase/client';
-import { enableRealtimeForAllTables } from '@/integrations/supabase/realtimeHelper';
-import { format, isSameMonth, isAfter, isBefore, startOfToday } from 'date-fns';
+import { useDashboardData } from './dashboard/useDashboardData';
+import { useDashboardSummary } from './dashboard/useDashboardSummary';
+import { useBillsSummary } from './dashboard/useBillsSummary';
+import { useEffect } from 'react';
 
 export const useDashboard = () => {
-  const { transactions, categories, accounts, bills, loading, billsLoading } = useFinance();
-  const [totalIncome, setTotalIncome] = useState(0);
-  const [totalExpense, setTotalExpense] = useState(0);
-  const [categoryData, setCategoryData] = useState<any[]>([]);
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [totalBalance, setTotalBalance] = useState(0);
-  const [upcomingBills, setUpcomingBills] = useState<any[]>([]);
-  const [overdueBills, setOverdueBills] = useState<any[]>([]);
-  const [todayBills, setTodayBills] = useState<any[]>([]);
-  const [localTransactions, setLocalTransactions] = useState<any[]>([]);
-  const [localAccounts, setLocalAccounts] = useState<any[]>([]);
-  const [localBills, setLocalBills] = useState<any[]>([]);
-
-  useEffect(() => {
-    setLocalTransactions(transactions);
-  }, [transactions]);
-
-  useEffect(() => {
-    setLocalAccounts(accounts);
-  }, [accounts]);
+  const { categories, loading: categoriesLoading, billsLoading } = useFinance();
   
-  useEffect(() => {
-    setLocalBills(bills);
-  }, [bills]);
-
-  // Function to refresh all data
-  const refreshData = useCallback(async () => {
-    console.log("Refreshing dashboard data...");
-    
-    // Fetch latest accounts data
-    const { data: accountsData } = await supabase.from('accounts').select('*');
-    if (accountsData) {
-      const formattedAccounts = accountsData.map(acc => ({
-        id: acc.id,
-        name: acc.name,
-        balance: Number(acc.balance),
-        type: acc.type,
-      }));
-      setLocalAccounts(formattedAccounts);
-    }
-    
-    // Fetch latest transactions data
-    const { data: transactionsData } = await supabase.from('transactions').select('*');
-    if (transactionsData) {
-      const formattedTransactions = transactionsData.map((trans) => ({
-        id: trans.id,
-        type: trans.type,
-        amount: Number(trans.amount),
-        date: new Date(trans.date),
-        categoryId: trans.category_id,
-        accountId: trans.account_id,
-        description: trans.description,
-      }));
-      setLocalTransactions(formattedTransactions);
-    }
-    
-    // Fetch latest bills data
-    const { data: billsData } = await supabase.from('bills').select('*, categories(name, icon)');
-    if (billsData) {
-      setLocalBills(billsData);
-    }
-    
-    console.log("Dashboard data refreshed successfully");
-  }, []);
-
-  // Enable real-time updates for all tables
-  useEffect(() => {
-    // Set up listeners for all relevant tables
-    const accountsChannel = supabase
-      .channel('dashboard-accounts-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'accounts' },
-        async () => {
-          console.log("Accounts table change detected, refreshing data");
-          await refreshData();
-        }
-      )
-      .subscribe();
-      
-    const transactionsChannel = supabase
-      .channel('dashboard-transactions-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions' },
-        async () => {
-          console.log("Transactions table change detected, refreshing data");
-          await refreshData();
-        }
-      )
-      .subscribe();
-      
-    const billsChannel = supabase
-      .channel('dashboard-bills-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'bills' },
-        async () => {
-          console.log("Bills table change detected, refreshing data");
-          await refreshData();
-        }
-      )
-      .subscribe();
-
-    // Clean up subscriptions
-    return () => {
-      supabase.removeChannel(accountsChannel);
-      supabase.removeChannel(transactionsChannel);
-      supabase.removeChannel(billsChannel);
-    };
-  }, [refreshData]);
-
-  useEffect(() => {
-    // Calculate totals
-    const income = localTransactions
-      .filter(t => t.type === 'income')
-      .reduce((acc, t) => acc + t.amount, 0);
-    
-    const expense = localTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((acc, t) => acc + t.amount, 0);
-    
-    setTotalIncome(income);
-    setTotalExpense(expense);
-    
-    // Calculate total balance from all accounts
-    const balance = localAccounts.reduce((acc, account) => acc + account.balance, 0);
-    setTotalBalance(balance);
-
-    // Prepare category data for pie chart
-    const expensesByCategory = localTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((acc, transaction) => {
-        const category = categories.find(c => c.id === transaction.categoryId);
-        if (category) {
-          acc[category.name] = (acc[category.name] || 0) + transaction.amount;
-        }
-        return acc;
-      }, {} as Record<string, number>);
-
-    const categoryPieData = Object.entries(expensesByCategory).map(([name, value]) => {
-      const category = categories.find(c => c.name === name);
-      return {
-        name,
-        value,
-        icon: category?.icon || '🔹',
-      };
-    });
-    
-    setCategoryData(categoryPieData);
-
-    // Prepare monthly data for line chart
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-
-    const monthlyTransactions = localTransactions.filter(t => 
-      new Date(t.date) >= sixMonthsAgo
-    );
-
-    const monthlyGrouped = monthlyTransactions.reduce((acc, transaction) => {
-      const month = format(new Date(transaction.date), 'MMM');
-      
-      if (!acc[month]) {
-        acc[month] = { month, income: 0, expense: 0 };
-      }
-      
-      if (transaction.type === 'income') {
-        acc[month].income += transaction.amount;
-      } else {
-        acc[month].expense += transaction.amount;
-      }
-      
-      return acc;
-    }, {} as Record<string, { month: string; income: number; expense: number }>);
-    
-    setMonthlyData(Object.values(monthlyGrouped));
-
-    // Filter bills for dashboard cards
-    const today = startOfToday();
-    
-    // Upcoming bills (due in the next 7 days but not overdue)
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    
-    const upcoming = localBills
-      .filter(b => 
-        b.status === 'pending' &&
-        isAfter(new Date(b.due_date), today) && 
-        isBefore(new Date(b.due_date), sevenDaysFromNow)
-      )
-      .slice(0, 3);
-    setUpcomingBills(upcoming);
-    
-    // Overdue bills
-    const overdue = localBills
-      .filter(b => 
-        b.status === 'pending' && 
-        isBefore(new Date(b.due_date), today)
-      )
-      .slice(0, 3);
-    setOverdueBills(overdue);
-    
-    // Today's bills
-    const due = localBills
-      .filter(b => {
-        const billDate = new Date(b.due_date);
-        return b.status === 'pending' && 
-          billDate.getDate() === today.getDate() &&
-          billDate.getMonth() === today.getMonth() &&
-          billDate.getFullYear() === today.getFullYear();
-      })
-      .slice(0, 3);
-    setTodayBills(due);
-
-  }, [localTransactions, localAccounts, categories, localBills]);
+  const { 
+    transactions, 
+    accounts, 
+    bills, 
+    loading: dataLoading, 
+    refreshData 
+  } = useDashboardData();
+  
+  const { 
+    totalIncome, 
+    totalExpense, 
+    totalBalance, 
+    categoryData, 
+    monthlyData 
+  } = useDashboardSummary(transactions, categories, accounts);
+  
+  const { 
+    upcomingBills, 
+    overdueBills, 
+    todayBills 
+  } = useBillsSummary(bills);
 
   return {
+    // Summary data
     totalIncome,
     totalExpense,
+    totalBalance,
     categoryData,
     monthlyData,
-    totalBalance,
+    
+    // Bills data
     upcomingBills,
     overdueBills,
     todayBills,
-    localTransactions,
+    
+    // Raw data
+    localTransactions: transactions,
     categories,
-    loading,
+    
+    // Loading states
+    loading: dataLoading || categoriesLoading,
     billsLoading,
+    
+    // Actions
     refreshData
   };
 };
