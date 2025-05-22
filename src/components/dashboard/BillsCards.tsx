@@ -2,7 +2,7 @@
 import React from 'react';
 import Card from '@/components/Card';
 import { Calendar } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 
 interface BillsCardsProps {
   overdueBills: any[];
@@ -12,6 +12,12 @@ interface BillsCardsProps {
 }
 
 export const BillsCards: React.FC<BillsCardsProps> = ({ overdueBills, todayBills, upcomingBills, categories }) => {
+  // Function to safely format dates
+  const formatSafeDate = (dateValue: any) => {
+    const date = new Date(dateValue);
+    return isValid(date) ? format(date, 'dd/MM/yyyy') : 'Data inválida';
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {overdueBills.length > 0 && (
@@ -26,7 +32,7 @@ export const BillsCards: React.FC<BillsCardsProps> = ({ overdueBills, todayBills
                     <div>
                       <p className="text-sm font-medium">{bill.description}</p>
                       <p className="text-xs text-neutral-light">
-                        {format(new Date(bill.dueDate), 'dd/MM/yyyy')}
+                        {formatSafeDate(bill.dueDate)}
                       </p>
                     </div>
                   </div>
@@ -92,7 +98,7 @@ export const BillsCards: React.FC<BillsCardsProps> = ({ overdueBills, todayBills
                     <div>
                       <p className="text-sm font-medium">{bill.description}</p>
                       <p className="text-xs text-neutral-light">
-                        {format(new Date(bill.dueDate), 'dd/MM/yyyy')}
+                        {formatSafeDate(bill.dueDate)}
                       </p>
                     </div>
                   </div>
