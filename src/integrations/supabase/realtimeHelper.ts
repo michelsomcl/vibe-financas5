@@ -14,7 +14,7 @@ export const enableRealtimeForTable = async (tableName: string): Promise<void> =
     const { error } = await supabase.rpc(
       'enable_realtime', 
       { table_name: tableName }
-    ) as { error: any };
+    );
     
     if (error) throw error;
     console.log(`Real-time enabled for table: ${tableName}`);
@@ -32,7 +32,7 @@ export const createRealtimeProcedure = async (): Promise<void> => {
     // Using the rpc method with proper type safety
     const { error } = await supabase.rpc(
       'create_realtime_procedure'
-    ) as { error: any };
+    );
     
     if (error) throw error;
     console.log('Real-time procedure created successfully');
