@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { useBillsData } from './bills/useBillsData';
+import { useBillsData as useRawBillsData } from './bills/useBillsData';
 import { useBillActions } from './bills/useBillActions';
 import { useBillPayment } from './bills/useBillPayment';
 import { Account, Transaction } from '@/types/finance';
@@ -8,11 +8,11 @@ import { Account, Transaction } from '@/types/finance';
 export const useBillsData = (
   accounts: Account[], 
   transactions: Transaction[], 
-  setTransactions: Function, 
-  setAccounts: Function
+  setTransactions: (transactions: Transaction[]) => void, 
+  setAccounts: (accounts: Account[]) => void
 ) => {
   // Get bills data and actions
-  const { bills, setBills, loading, fetchBills } = useBillsData();
+  const { bills, setBills, loading, fetchBills } = useRawBillsData();
   const { addBill, editBill, deleteBill } = useBillActions(bills, setBills);
   const { payBill } = useBillPayment(
     bills,
