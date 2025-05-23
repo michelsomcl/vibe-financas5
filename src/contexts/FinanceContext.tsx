@@ -1,5 +1,5 @@
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { FinanceContextType, Account, Category, Transaction, Bill } from '@/types/finance';
 import { useTransactionsData } from '@/hooks/finance/useTransactions';
 import { useCategoriesData } from '@/hooks/finance/useCategories';
@@ -43,10 +43,10 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const [accountsState, setAccountsState] = useState<Account[]>([]);
 
   // Update state when data changes
-  useState(() => {
+  useEffect(() => {
     setTransactionsState(transactions);
     setAccountsState(accounts);
-  });
+  }, [transactions, accounts]);
 
   const {
     bills,
@@ -58,9 +58,9 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   } = useBillsData(accounts, transactions, setTransactionsState, setAccountsState);
 
   // Enable realtime for all tables on component mount
-  useState(() => {
+  useEffect(() => {
     enableRealtimeForAllTables();
-  });
+  }, []);
 
   // Determine overall loading state
   const loading = categoriesLoading || accountsLoading || transactionsLoading;
@@ -102,4 +102,15 @@ export const useFinance = () => {
     throw new Error('useFinance must be used within a FinanceProvider');
   }
   return context;
+};
+
+// Convenience hooks for accessing specific parts of the finance context
+export const useTransactions = () => {
+  const { transactions, addTransaction, editTransaction, deleteTransaction } = useFinance();
+  return { transactions, addTransaction, editTransaction, deleteTransaction, setTransactions: () => {} };
+};
+
+export const useAccounts = () => {
+  const { accounts, addAccount, editAccount, deleteAccount, getAccountById } = useFinance();
+  return { accounts, addAccount, editAccount, deleteAccount, getAccountById, setAccounts: () => {} };
 };

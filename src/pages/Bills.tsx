@@ -135,7 +135,7 @@ const Bills = () => {
             {billToEdit && (
               <BillForm 
                 onClose={() => setIsEditingBill(false)}
-                initialData={billToEdit} /* Updated prop name to match BillForm's expected props */
+                bill={billToEdit} // Changed from initialData to bill to match BillForm's prop
               />
             )}
           </div>

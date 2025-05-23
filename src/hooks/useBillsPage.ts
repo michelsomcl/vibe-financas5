@@ -3,9 +3,8 @@ import { isAfter, isSameDay, parseISO, compareAsc } from 'date-fns';
 import { toast } from 'sonner';
 import { useBills } from '@/hooks/useBills';
 import { useBillsData } from '@/hooks/finance/useBills';
-import { useAccounts } from '@/contexts/FinanceContext';
-import { useTransactions } from '@/contexts/FinanceContext';
-import { Account, Transaction } from '@/types/finance';
+import { useFinance } from '@/contexts/FinanceContext';
+import { Bill } from '@/types/finance';
 
 export const useBillsPage = () => {
   // State
@@ -22,14 +21,11 @@ export const useBillsPage = () => {
   const [billToDelete, setBillToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Get bills data
+  // Get bills data and finance context
   const { bills: rawBills, loading: isLoading } = useBills();
+  const { accounts, transactions } = useFinance();
   
-  // Get accounts and transactions from FinanceContext
-  const { accounts, setAccounts } = useAccounts();
-  const { transactions, setTransactions } = useTransactions();
-  
-  // Get bills methods
+  // Get bills methods with empty state setters (since we're not actually updating state here)
   const { 
     deleteBill, 
     payBill,
@@ -37,8 +33,8 @@ export const useBillsPage = () => {
   } = useBillsData(
     accounts, 
     transactions, 
-    setTransactions,
-    setAccounts
+    () => {},
+    () => {}
   );
 
   // Processed bills for display

@@ -40,3 +40,15 @@ export function enableRealtimeForPublic() {
       console.log('Public schema realtime status:', status);
     });
 }
+
+/**
+ * Enable real-time for all tables
+ * This function enables real-time subscriptions for commonly used tables
+ */
+export function enableRealtimeForAllTables() {
+  const tables = ['transactions', 'categories', 'accounts', 'bills'];
+  tables.forEach(table => {
+    enableRealtimeForTable(table);
+  });
+  console.log('Realtime subscriptions established for all main tables');
+}
