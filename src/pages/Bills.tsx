@@ -40,7 +40,7 @@ const Bills = () => {
     confirmDeleteBill,
     handleAddBillClose,
     handlePayBillClose,
-    // New edit functionality
+    // Edit functionality
     isEditingBill,
     setIsEditingBill,
     billToEdit,
@@ -134,8 +134,8 @@ const Bills = () => {
           <div className="mt-6">
             {billToEdit && (
               <BillForm 
-                onClose={() => setIsEditingBill(false)} 
-                billToEdit={billToEdit} 
+                onClose={() => setIsEditingBill(false)}
+                initialData={billToEdit} /* Updated prop name to match BillForm's expected props */
               />
             )}
           </div>

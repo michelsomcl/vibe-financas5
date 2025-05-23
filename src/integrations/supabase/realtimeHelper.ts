@@ -2,49 +2,41 @@
 import { supabase } from './client';
 
 /**
- * Enables real-time updates for a specific table
+ * Enable real-time for a specific table
+ * @param tableName - The name of the table to enable real-time for
  */
-export const enableRealtimeForTable = async (tableName: string): Promise<void> => {
-  try {
-    // Using type assertion to handle the RPC call
-    const { error } = await supabase.rpc(
-      'enable_realtime',
-      { table_name: tableName }
-    ) as any;
-    
-    if (error) throw error;
-    console.log(`Real-time enabled for table: ${tableName}`);
-  } catch (error) {
-    console.error(`Error enabling real-time for table ${tableName}:`, error);
-  }
-};
+export function enableRealtimeForTable(tableName: string) {
+  supabase
+    .channel('custom-all-channel')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: tableName as any }, // Fix TypeScript error with type assertion
+      (payload) => {
+        console.log('Change received!', payload);
+      }
+    )
+    .subscribe((status: any) => {
+      console.log('Realtime status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log(`Realtime subscription established for table: ${tableName}`);
+      }
+    });
+}
 
 /**
- * Creates a stored procedure in PostgreSQL to enable real-time for tables
+ * Enable real-time for the public schema
  */
-export const createRealtimeProcedure = async (): Promise<void> => {
-  try {
-    // Using type assertion to handle the RPC call
-    const { error } = await supabase.rpc(
-      'create_realtime_procedure'
-    ) as any;
-    
-    if (error) throw error;
-    console.log('Real-time procedure created successfully');
-  } catch (error) {
-    console.log('Real-time procedure might already exist:', error);
-  }
-};
-
-/**
- * Enables real-time updates for all financial tables
- */
-export const enableRealtimeForAllTables = async (): Promise<void> => {
-  const tables = ['transactions', 'accounts', 'bills', 'categories'];
-  
-  for (const table of tables) {
-    await enableRealtimeForTable(table);
-  }
-  
-  console.log('Real-time enabled for all tables');
-};
+export function enableRealtimeForPublic() {
+  supabase
+    .channel('custom-public-channel')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public' },
+      (payload: any) => {
+        console.log('Public schema change received!', payload);
+      }
+    )
+    .subscribe((status: any) => {
+      console.log('Public schema realtime status:', status);
+    });
+}

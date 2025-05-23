@@ -3,8 +3,9 @@ import { isAfter, isSameDay, parseISO, compareAsc } from 'date-fns';
 import { toast } from 'sonner';
 import { useBills } from '@/hooks/useBills';
 import { useBillsData } from '@/hooks/finance/useBills';
-import { useAccounts } from '@/hooks/finance/useAccounts';
-import { useTransactions } from '@/hooks/finance/useTransactions';
+import { useAccounts } from '@/contexts/FinanceContext';
+import { useTransactions } from '@/contexts/FinanceContext';
+import { Account, Transaction } from '@/types/finance';
 
 export const useBillsPage = () => {
   // State
@@ -24,7 +25,7 @@ export const useBillsPage = () => {
   // Get bills data
   const { bills: rawBills, loading: isLoading } = useBills();
   
-  // Get accounts and transactions for payment handling
+  // Get accounts and transactions from FinanceContext
   const { accounts, setAccounts } = useAccounts();
   const { transactions, setTransactions } = useTransactions();
   

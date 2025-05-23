@@ -13,7 +13,6 @@ import Categories from "./pages/Categories";
 import Accounts from "./pages/Accounts";
 import Bills from "./pages/Bills";
 import NotFound from "./pages/NotFound";
-import { AuroraBackgroundDemo } from "./components/ui/aurora-demo";
 
 const queryClient = new QueryClient();
 
@@ -32,7 +31,6 @@ const App = () => (
             <Route path="categorias" element={<Categories />} />
             <Route path="contas" element={<Accounts />} />
             <Route path="contas-a-pagar" element={<Bills />} />
-            <Route path="demo" element={<AuroraBackgroundDemo />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
